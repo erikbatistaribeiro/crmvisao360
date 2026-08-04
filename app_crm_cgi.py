@@ -1,10 +1,3 @@
-# ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║  CRM CGI — Databricks App                                                   ║
-# ║  Baseado na documentação oficial: https://apps-cookbook.dev/docs/intro      ║
-# ║  Deploy: Databricks Workspace → Compute → Apps → Create app → Deploy       ║
-# ║  Local:  export DATABRICKS_HOST=https://... && python app.py                ║
-# ╚══════════════════════════════════════════════════════════════════════════════╝
-
 import os
 import json
 from functools import lru_cache
@@ -52,14 +45,14 @@ SELECT cpf, nome_cliente, fase_atual, fase_ativa, responsavel, atendente_inicial
        estado_civil, nome_conjuge, regime_bens, pep, score_risco,
        data_nascimento, eh_cliente, bsa_grupo_contas, bsa_data_criacao_cliente
 FROM `treinamentos`.`erikbatista-15577-bsf`.`dim_clientes_pipefy`
-WHERE cpf = ?
+WHERE cpf = %s
 LIMIT 1
 """
 
 SQL_BUSCA_NOME = """
 SELECT cpf, nome_cliente, fase_atual, responsavel, telefone
 FROM `treinamentos`.`erikbatista-15577-bsf`.`dim_clientes_pipefy`
-WHERE upper(nome_cliente) LIKE upper(?)
+WHERE upper(nome_cliente) LIKE upper(%s)
 ORDER BY atualizado_em DESC
 LIMIT 10
 """
@@ -70,7 +63,7 @@ SELECT id_contrato, empresa, area_negocio, tipo_contrato,
        valor_parcela_estimado, data_contrato, contrato_ativo,
        ano_contrato, mes_contrato
 FROM `treinamentos`.`erikbatista-15577-bsf`.`fato_contratos`
-WHERE cpf = ?
+WHERE cpf = %s
 ORDER BY data_contrato DESC
 """
 
@@ -87,7 +80,7 @@ SELECT
     MAX(dias_atraso) AS max_dias_atraso,
     ROUND(SUM(CASE WHEN paga THEN 1.0 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100, 1) AS taxa_adimplencia
 FROM `treinamentos`.`erikbatista-15577-bsf`.`fato_parcelas`
-WHERE cpf = ?
+WHERE cpf = %s
 """
 
 SQL_PARCELAS_DETALHE = """
@@ -95,7 +88,7 @@ SELECT id_contrato, num_parcela, data_vencimento, data_pagamento,
        valor_parcela, valor_pago, saldo_parcela, juros_atraso,
        status_parcela, faixa_atraso, dias_atraso, tipo_baixa
 FROM `treinamentos`.`erikbatista-15577-bsf`.`fato_parcelas`
-WHERE cpf = ?
+WHERE cpf = %s
 ORDER BY data_vencimento DESC
 LIMIT 200
 """
@@ -105,7 +98,7 @@ SELECT id_card_producao, id_card_pessoas, nome_pessoa, parte_envolvida,
        tipo_documento, nome_arquivo, tipo_arquivo, url_documento,
        status_leitura, finalizado
 FROM `treinamentos`.`erikbatista-15577-bsf`.`fato_documentos`
-WHERE cpf = ?
+WHERE cpf = %s
 ORDER BY id_card_producao, parte_envolvida, tipo_documento
 """
 
@@ -118,7 +111,7 @@ SELECT id_card_pipefy, url_card_pipefy, fase_atual, fase_ativa,
        data_contato_comercial, data_retorno, data_retorno_fase,
        tem_retorno_agendado, prioridade_cgi, pedra, score_risco
 FROM `treinamentos`.`erikbatista-15577-bsf`.`fato_atendimentos`
-WHERE cpf = ?
+WHERE cpf = %s
 ORDER BY atualizado_em DESC
 """
 
@@ -319,6 +312,9 @@ html,body{font-family:'Inter',-apple-system,sans-serif;font-size:13px;color:var(
 .not-found .nf-icon{font-size:36px;margin-bottom:4px}
 .not-found .nf-title{font-size:15px;font-weight:600;color:var(--g7)}
 .not-found .nf-sub{font-size:12px;color:var(--g4)}
+.search-wrap button:disabled{opacity:.6;cursor:not-allowed}
+.loading-overlay{display:flex;align-items:center;justify-content:center;gap:14px;padding:52px 24px;color:var(--g5);font-size:14px;font-weight:500}
+.loading-overlay .spinner{width:22px;height:22px;border:2.5px solid var(--g2);border-top-color:var(--pip);border-radius:50%;animation:spin .7s linear infinite}
 """
 
 # ── APP ───────────────────────────────────────────────────────────────────────
@@ -339,7 +335,10 @@ app.layout = html.Div([
             dcc.Input(id="search-input", type="text",
                       placeholder="Buscar por CPF ou nome...",
                       debounce=False, style={"width": "100%"}),
-            html.Button("Buscar", id="search-btn", n_clicks=0),
+            html.Button([
+                html.Span("Buscar", id="search-btn-text"),
+                html.Span(id="search-btn-spinner", style={"display":"none"}, children=" ⟳"),
+            ], id="search-btn", n_clicks=0),
         ], className="search-wrap"),
         html.Div([html.Div(id="user-avatar", className="avatar", children="?")],
                  className="topbar-right"),
@@ -370,7 +369,7 @@ def update_avatar(_):
 )
 def buscar(_, __, termo):
     # Limpa conteúdo anterior e mostra loading
-    loading_on  = [html.Div(className="spinner"), html.Span("Buscando...")], {"display": "flex"}
+    loading_on  = [html.Div(className="spinner"), html.Span("Buscando na base de dados...")], {"display": "flex"}
     loading_off = [], {"display": "none"}
 
     if not termo or not termo.strip():
@@ -385,9 +384,13 @@ def buscar(_, __, termo):
             return [], {"display": "none"}, *loading_off, build_client_content(rows[0], t)
         # CPF não encontrado
         not_found = html.Div([
-            html.Div("🔍", className="nf-icon"),
+            html.Div("—", className="nf-icon", style={"fontSize":"32px","color":"var(--g3)"}),
             html.Div("CPF não encontrado", className="nf-title"),
-            html.Div(f"Nenhum registro para o CPF {fmt_cpf(t)}", className="nf-sub"),
+            html.Div([
+                f"Nenhum registro para ",
+                html.Strong(fmt_cpf(t)),
+                " na base de dados."
+            ], className="nf-sub"),
         ], className="not-found")
         return [not_found], {"display": "block"}, *loading_off, []
 
