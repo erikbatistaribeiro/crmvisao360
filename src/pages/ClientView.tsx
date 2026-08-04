@@ -23,7 +23,7 @@ export default function ClientView({ cpf }: { cpf: string }) {
   const { data: documentos,  isLoading: loadingD  } = useDocumentos(cpf);
   const { data: atendimentos,isLoading: loadingAt } = useAtendimentos(cpf);
 
-  if (loadingC) {
+  if (loadingC || loadingAt) {
     return (
       <div className="flex-1 flex items-center justify-center gap-3 text-gray-500 text-sm">
         <Spinner /> Carregando dados do cliente...
