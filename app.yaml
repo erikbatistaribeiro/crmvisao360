@@ -2,7 +2,7 @@ command: ["python", "app.py"]
 
 env:
   - name: DATABRICKS_HTTP_PATH
-    value: "/sql/1.0/warehouses/seu-warehouse-id"   # << substitua pelo seu warehouse
+    value: "/sql/1.0/warehouses/6d304ee2888bbdbf"
 
 permissions:
   - level: "CAN_USE"
