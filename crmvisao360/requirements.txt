@@ -1,4 +1,0 @@
-fastapi
-uvicorn[standard]
-databricks-sdk
-databricks-sql-connector
