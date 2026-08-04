@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { ExternalLink, ChevronDown, ChevronRight, AlertTriangle, Clock } from "lucide-react";
 import { clsx } from "clsx";
 import {
@@ -18,7 +18,7 @@ export default function ClientView({ cpf }: { cpf: string }) {
 
   const { data: cliente,     isLoading: loadingC  } = useCliente(cpf);
   const { data: contratos,   isLoading: loadingCo } = useContratos(cpf);
-  const { data: parResumo,   isLoading: loadingPr } = useParcelasResumo(cpf);
+  const { data: parResumo } = useParcelasResumo(cpf);
   const { data: parDetalhe,  isLoading: loadingPd } = useParcelasDetalhe(cpf);
   const { data: documentos,  isLoading: loadingD  } = useDocumentos(cpf);
   const { data: atendimentos,isLoading: loadingAt } = useAtendimentos(cpf);
