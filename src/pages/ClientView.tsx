@@ -35,7 +35,6 @@ export default function ClientView({ cpf }: { cpf: string }) {
   const at         = atendimentos?.[0];
   const emAtraso   = (parResumo?.em_atraso ?? 0) > 0;
   const cardParado = (at?.dias_sem_atualizacao ?? 0) > 7;
-  const faseColor_ = faseColor(cliente.fase_atual, cliente.fase_ativa);
   const urlPipefy  = at?.url_card_pipefy ?? "#";
 
   const totalFinanciado = (contratos ?? []).reduce(
