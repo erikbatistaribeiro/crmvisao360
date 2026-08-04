@@ -28,6 +28,7 @@ def get_conn():
         server_hostname=cfg.host,
         http_path=HTTP_PATH,
         credentials_provider=lambda: cfg.authenticate,
+        use_inline_params=True,   # permite %s como placeholder
     )
 
 def run_query(sql: str, params: list[Any] | None = None) -> list[dict]:
