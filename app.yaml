@@ -1,5 +1,0 @@
-command: ["python", "app_crm_cgi.py"]
-
-env:
-  - name: DATABRICKS_HTTP_PATH
-    value: "/sql/1.0/warehouses/6d304ee2888bbdbf"
