@@ -47,7 +47,7 @@ SQL = {
                profissao, renda_mensal, renda_apurada, estado_civil,
                nome_conjuge, regime_bens, pep, score_risco,
                data_nascimento, eh_cliente, bsa_grupo_contas,
-               bsa_data_criacao_cliente
+               bsa_data_criacao_cliente, pedra, prioridade_cgi
         FROM {CAT}.`dim_clientes_pipefy`
         WHERE cpf = %s LIMIT 1
     """,
