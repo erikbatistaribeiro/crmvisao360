@@ -42,6 +42,40 @@ export default function ClientView({ cpf }: { cpf: string }) {
     (s, c) => s + (c.valor_financiado ?? 0), 0
   );
 
+  // Fase principal: prefere card ativo mais avançado do histórico de atendimentos.
+  // Resolve casos onde dim_clientes guarda "Lead Não Qualificado" mas o cliente
+  // já tem um card em "Operação Finalizada" no histórico.
+  const ORDEM_FASES = [
+    "Operação Finalizada","Pagamento Aprovado","Registro","Formalização",
+    "Aprovado","Pré-Aprovado","Análise de Cliente","Envio de Documentos",
+    "Negociação","Segunda Qualificação","Primeira Qualificação","Contato Inicial",
+    "Comitê de Crédito","Pendente Análise de Crédito","Negociação Fria",
+    "Regularização - Imóvel Bemol","Regularização - Conta Própria",
+    "Geladeira - Regularização","Remarketing","Lead Não Qualificado",
+    "Recusado","Desistente",
+  ];
+  const fasePrincipal = (() => {
+    if (!atendimentos?.length)
+      return { fase: cliente.fase_atual, ativa: cliente.fase_ativa === 1 };
+    // Prioridade 1: qualquer card com fase ativa
+    const ativo = [...atendimentos].find((a: any) => a.fase_ativa === 1);
+    if (ativo) return { fase: ativo.fase_atual as string, ativa: true };
+    // Prioridade 2: fase mais avançada entre os inativos
+    const melhor = [...atendimentos].sort((a: any, b: any) => {
+      const ai = ORDEM_FASES.indexOf(a.fase_atual);
+      const bi = ORDEM_FASES.indexOf(b.fase_atual);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    })[0];
+    return { fase: melhor.fase_atual as string, ativa: false };
+  })();
+
+  // Pedra: prefere o card ativo mais recente
+  const pedraPrincipal = (() => {
+    if (!atendimentos?.length) return cliente.pedra;
+    const comPedra = [...atendimentos].find((a: any) => a.pedra);
+    return comPedra?.pedra ?? cliente.pedra;
+  })();
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
@@ -59,12 +93,21 @@ export default function ClientView({ cpf }: { cpf: string }) {
             </h1>
             <div className="flex flex-wrap gap-1.5">
               <Badge color="pip">CPF: {fmtCpf(cpf)}</Badge>
-              <Badge color={faseColor_ === "green" ? "green" : "gray"}>
-                {cliente.fase_atual}
+
+              {/* Fase: prefere o card ativo mais avançado dos atendimentos */}
+              <Badge color={fasePrincipal.ativa ? "green" : "gray"}>
+                {fasePrincipal.fase}
               </Badge>
-              <Badge color={cliente.eh_cliente ? "blue" : "gray"}>
-                {cliente.eh_cliente ? "Cliente Bemol" : "Prospect"}
-              </Badge>
+
+              {/* Pedra no lugar de "Cliente Bemol" */}
+              {pedraPrincipal ? (
+                <Badge color="amber">{pedraPrincipal}</Badge>
+              ) : cliente.eh_cliente ? (
+                <Badge color="blue">Cliente Bemol</Badge>
+              ) : (
+                <Badge color="gray">Prospect</Badge>
+              )}
+
               {cliente.pep?.toUpperCase() === "SIM" && (
                 <Badge color="red">⚠ PEP</Badge>
               )}
