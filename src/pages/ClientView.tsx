@@ -195,7 +195,8 @@ export default function ClientView({ cpf }: { cpf: string }) {
 
         {tab === "Visão 360°" && (
           <Tab360 cliente={cliente} at={at} parResumo={parResumo}
-            contratos={contratos} documentos={documentos} urlPipefy={urlPipefy} />
+            contratos={contratos} documentos={documentos} urlPipefy={urlPipefy}
+            fasePrincipal={fasePrincipal} />
         )}
         {tab === "Contratos" && (
           <TabContratos contratos={contratos} loading={loadingCo} />
@@ -217,7 +218,7 @@ export default function ClientView({ cpf }: { cpf: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: VISÃO 360
 // ─────────────────────────────────────────────────────────────────────────────
-function Tab360({ cliente, at, parResumo, contratos, documentos, urlPipefy }: any) {
+function Tab360({ cliente, at, parResumo, contratos, documentos, urlPipefy, fasePrincipal }: any) {
   return (
     <div className="grid grid-cols-[300px_1fr] gap-4">
       {/* Coluna esq */}
@@ -250,9 +251,13 @@ function Tab360({ cliente, at, parResumo, contratos, documentos, urlPipefy }: an
 
         <SectionCard title="Funil CGI">
           <div className="p-4 grid grid-cols-2 gap-3">
-            <Field label="Fase Atual"  value={cliente.fase_atual} />
-            <Field label="Responsável" value={cliente.responsavel} />
-            <Field label="Atendente"   value={cliente.atendente_inicial} />
+            <Field label="Fase Atual"
+              value={fasePrincipal?.fase ?? cliente.fase_atual}
+              highlight={fasePrincipal?.ativa ? "green" : undefined} />
+            <Field label="Responsável"
+              value={at?.responsavel || cliente.responsavel} />
+            <Field label="Atendente"
+              value={at?.atendente_inicial || cliente.atendente_inicial} />
             <Field label="Score Risco" value={cliente.score_risco} highlight="pip" />
             <Field label="Última Atualiz." value={fmtDate(at?.atualizado_em)} />
             <Field label="Dias parado" value={at?.dias_sem_atualizacao != null ? `${at.dias_sem_atualizacao}d` : "—"}
