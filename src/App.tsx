@@ -3,7 +3,7 @@ import { Search } from "lucide-react";
 import HomeScreen from "./pages/HomeScreen";
 import ClientView from "./pages/ClientView";
 import { useMe } from "./hooks/useApi";
-import { fmtCpf, cleanCpf } from "./hooks/useFormatters";
+import { cleanCpf } from "./hooks/useFormatters";
 
 export default function App() {
   const [cpf, setCpf] = useState<string | null>(null);
