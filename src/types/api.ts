@@ -21,6 +21,8 @@ export interface Cliente {
   eh_cliente:             boolean;
   bsa_grupo_contas:       string | null;
   bsa_data_criacao_cliente: string | null;
+  pedra:                  string | null;
+  prioridade_cgi:         string | null;
 }
 
 export interface ClienteResumo {
