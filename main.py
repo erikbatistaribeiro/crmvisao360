@@ -93,13 +93,19 @@ SQL = {
         WHERE cpf = %s ORDER BY id_card_producao, parte_envolvida, tipo_documento
     """,
     "atendimentos": f"""
-        SELECT id_card_pipefy, url_card_pipefy, fase_atual, fase_ativa,
-               criador, atendente_inicial, responsavel, origem_lead, campanha,
-               criado_em, atualizado_em, dias_desde_criacao, dias_sem_atualizacao,
-               ultimo_comentario, ultimo_comentario_em, dias_sem_comentario,
-               tentativa_contato, canal_preferencia, data_contato_comercial,
-               data_retorno, data_retorno_fase, tem_retorno_agendado,
-               prioridade_cgi, pedra, score_risco
+        SELECT
+            -- Corrige notação científica: 9.20836364E8 → 920836364
+            CAST(CAST(id_card_pipefy AS DOUBLE) AS BIGINT) AS id_card_pipefy,
+            CONCAT('https://app.pipefy.com/open-cards/',
+                CAST(CAST(id_card_pipefy AS DOUBLE) AS BIGINT)
+            ) AS url_card_pipefy,
+            fase_atual, fase_ativa,
+            criador, atendente_inicial, responsavel, origem_lead, campanha,
+            criado_em, atualizado_em, dias_desde_criacao, dias_sem_atualizacao,
+            ultimo_comentario, ultimo_comentario_em, dias_sem_comentario,
+            tentativa_contato, canal_preferencia, data_contato_comercial,
+            data_retorno, data_retorno_fase, tem_retorno_agendado,
+            prioridade_cgi, pedra, score_risco
         FROM {CAT}.`fato_atendimentos`
         WHERE cpf = %s ORDER BY atualizado_em DESC
     """,
@@ -164,9 +170,81 @@ def get_parcelas(cpf: str, detalhe: bool = False):
 def get_documentos(cpf: str):
     return run_query(SQL["documentos"], [cpf])
 
+@app.get("/api/clientes/{cpf}/debug")
+def debug_atendimentos(cpf: str):
+    """Conta registros em cada tabela para o CPF — use para diagnóstico."""
+    results = {}
+    try:
+        r = run_query(f"SELECT COUNT(*) AS n FROM {CAT}.`fato_atendimentos` WHERE cpf = %s", [cpf])
+        results["fato_atendimentos"] = r[0]["n"] if r else 0
+    except Exception as e:
+        results["fato_atendimentos_erro"] = str(e)
+    try:
+        r = run_query(
+            "SELECT COUNT(*) AS n FROM mawe.silver.campanhas_pipefy WHERE REGEXP_REPLACE(CPF, '[^0-9]', '') = %s",
+            [cpf]
+        )
+        results["campanhas_pipefy"] = r[0]["n"] if r else 0
+    except Exception as e:
+        results["campanhas_pipefy_erro"] = str(e)
+    return results
+
 @app.get("/api/clientes/{cpf}/atendimentos")
 def get_atendimentos(cpf: str):
-    return run_query(SQL["atendimentos"], [cpf])
+    # Tenta primeiro a tabela Gold
+    try:
+        rows = run_query(SQL["atendimentos"], [cpf])
+        if rows:
+            return rows
+    except Exception:
+        pass
+
+    # Fallback: busca direto na silver campanhas_pipefy
+    sql_silver = f"""
+        SELECT
+            CODIGO                          AS id_card_pipefy,
+            CONCAT('https://app.pipefy.com/open-cards/', CODIGO) AS url_card_pipefy,
+            FASE_ATUAL                      AS fase_atual,
+            CASE WHEN FASE_ATUAL IN (
+                'Contato Inicial','Primeira Qualificação','Segunda Qualificação',
+                'Negociação','Envio de Documentos','Análise de Cliente','Pré-Aprovado',
+                'Aprovado','Formalização','Registro','Pagamento Aprovado','Operação Finalizada'
+            ) THEN 1 ELSE 0 END             AS fase_ativa,
+            CRIADOR                         AS criador,
+            ATENDENTE_INICIAL               AS atendente_inicial,
+            RESPONSAVEIS                    AS responsavel,
+            ORIGEM_DO_LEAD                  AS origem_lead,
+            CAMPANHA                        AS campanha,
+            CRIADO_EM                       AS criado_em,
+            ATUALIZADO_EM                   AS atualizado_em,
+            DATEDIFF(current_date(), TRY_CAST(CRIADO_EM AS DATE))     AS dias_desde_criacao,
+            DATEDIFF(current_date(), TRY_CAST(ATUALIZADO_EM AS DATE)) AS dias_sem_atualizacao,
+            ULTIMO_COMENTARIO               AS ultimo_comentario,
+            ULTIMO_COMENTARIO_EM            AS ultimo_comentario_em,
+            DATEDIFF(current_date(), TRY_CAST(ULTIMO_COMENTARIO_EM AS DATE)) AS dias_sem_comentario,
+            `1_TENTATIVA_CONTATO`           AS tentativa_contato,
+            QUAL_CANAL_DE_PREFERENCIA_PARA_O_ATENDIMENTO AS canal_preferencia,
+            DATA_DO_CONTATO_COMERCIAL       AS data_contato_comercial,
+            DATA_DE_RETORNO                 AS data_retorno,
+            COALESCE(
+                DATA_RETORNO_NEGOCIACAO,
+                DATA_RETORNO_ENVIO_DE_DOCUMENTOS,
+                DATA_RETORNO_APROVADO,
+                DATA_RETORNO_SEGUNDA_Q,
+                DATA_RETORNO_PRIMEIRA_Q
+            )                               AS data_retorno_fase,
+            CASE WHEN COALESCE(
+                DATA_RETORNO_NEGOCIACAO, DATA_RETORNO_ENVIO_DE_DOCUMENTOS,
+                DATA_RETORNO_APROVADO, DATA_RETORNO_SEGUNDA_Q, DATA_RETORNO_PRIMEIRA_Q
+            ) > current_date() THEN TRUE ELSE FALSE END AS tem_retorno_agendado,
+            PRIORIDADE_CGI                  AS prioridade_cgi,
+            PEDRA                           AS pedra,
+            SCORE_RISCO                     AS score_risco
+        FROM mawe.silver.campanhas_pipefy
+        WHERE REGEXP_REPLACE(CPF, '[^0-9]', '') = %s
+        ORDER BY ATUALIZADO_EM DESC
+    """
+    return run_query(sql_silver, [cpf])
 
 # ── Serve React ───────────────────────────────────────────────────────────────
 if DIST_DIR.exists():
