@@ -1,0 +1,5 @@
+command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "$DATABRICKS_APP_PORT"]
+
+env:
+  - name: DATABRICKS_HTTP_PATH
+    value: "/sql/1.0/warehouses/6d304ee2888bbdbf"
