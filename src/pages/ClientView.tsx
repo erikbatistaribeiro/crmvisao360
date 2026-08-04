@@ -460,75 +460,121 @@ function TabDocumentos({ docs, loading }: any) {
 // TAB: ATENDIMENTO
 // ─────────────────────────────────────────────────────────────────────────────
 function TabAtendimento({ atendimentos, loading }: any) {
+  const [open, setOpen] = useState<string | null>(null);
+
   if (loading) return <div className="flex justify-center py-12"><Spinner /></div>;
-  const at = atendimentos?.[0];
+  if (!atendimentos?.length) return <Empty message="Nenhum atendimento encontrado." />;
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* Timeline */}
-      <SectionCard title="Timeline de atendimentos">
-        <div className="p-4">
-          {(atendimentos ?? []).length === 0 && <Empty message="Sem histórico." />}
-          <div className="flex flex-col">
-            {(atendimentos ?? []).map((a: any, i: number) => (
-              <div key={a.id_card_pipefy} className="flex gap-3 pb-4 relative">
-                {i < atendimentos.length - 1 && (
-                  <div className="absolute left-3.5 top-7 w-px h-full bg-gray-200" />
-                )}
-                <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs z-10
-                  ${i === 0 ? "bg-pip-100 text-pip-600" : "bg-emerald-50 text-emerald-600"}`}>
-                  💬
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-[12px] font-semibold text-gray-900">
-                      Card #{a.id_card_pipefy?.slice(-8)}
-                    </span>
-                    <Badge color={faseColor(a.fase_atual, a.fase_ativa) === "green" ? "green" : "gray"}>
-                      {a.fase_atual}
-                    </Badge>
-                  </div>
-                  <p className="text-[10px] text-gray-400 mb-1.5">
-                    {fmtDate(a.criado_em)} · {a.responsavel || "—"}
-                  </p>
-                  <p className="text-[11px] text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 leading-relaxed">
-                    {a.ultimo_comentario || "Sem comentário registrado."}
-                  </p>
-                  <a href={a.url_card_pipefy} target="_blank" rel="noreferrer"
-                     className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-pip-600 font-semibold hover:underline">
-                    <ExternalLink size={10} /> Abrir no Pipefy
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </SectionCard>
+    <div className="flex flex-col gap-3">
+      {atendimentos.map((a: any, i: number) => {
+        const isFirst   = i === 0;
+        const isOpen    = open === a.id_card_pipefy;
+        const faseAtiva = faseColor(a.fase_atual, a.fase_ativa) === "green";
+        const parado    = (a.dias_sem_atualizacao ?? 0) > 7;
 
-      {/* Detalhes */}
-      <SectionCard title="Dados do atendimento atual">
-        <div className="p-4 grid grid-cols-2 gap-3">
-          <Field label="Fase Atual"       value={at?.fase_atual} />
-          <Field label="Responsável"      value={at?.responsavel} />
-          <Field label="Criado em"        value={fmtDate(at?.criado_em)} />
-          <Field label="Atualizado em"    value={fmtDate(at?.atualizado_em)} />
-          <Field label="Dias sem atualiz."
-            value={at?.dias_sem_atualizacao != null ? `${at.dias_sem_atualizacao}d` : "—"}
-            highlight={(at?.dias_sem_atualizacao ?? 0) > 7 ? "amber" : undefined} />
-          <Field label="Retorno"
-            value={at?.tem_retorno_agendado ? fmtDate(at?.data_retorno_fase) : "Não"} />
-          <Field label="Canal Pref."      value={at?.canal_preferencia} />
-          <Field label="Tentativa"        value={at?.tentativa_contato} />
-          <Field label="Origem Lead"      value={at?.origem_lead} />
-          <Field label="Campanha"         value={at?.campanha} />
-        </div>
-        <div className="px-4 pb-4">
-          <a href={at?.url_card_pipefy ?? "#"} target="_blank" rel="noreferrer"
-             className="flex items-center justify-center gap-2 w-full py-2.5 bg-pip-500 hover:bg-pip-600 text-white text-[13px] font-semibold rounded-xl transition-colors">
-            <ExternalLink size={14} /> Abrir card no Pipefy
-          </a>
-        </div>
-      </SectionCard>
+        return (
+          <div key={a.id_card_pipefy}
+            className={`bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden
+              border-l-4 ${isFirst ? "border-l-pip-500" : "border-l-gray-300"}`}>
+
+            {/* ── HEADER CLICÁVEL ── */}
+            <button
+              onClick={() => setOpen(isOpen ? null : a.id_card_pipefy)}
+              className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-4">
+
+                {/* ID do card */}
+                <span className="text-[13px] font-bold text-pip-600 font-mono shrink-0">
+                  #{String(a.id_card_pipefy)}
+                </span>
+
+                {/* Data */}
+                <span className="text-[11px] text-gray-400 shrink-0">
+                  {fmtDate(a.criado_em)}
+                </span>
+
+                {/* Campos inline — mesmo padrão visual do TabContratos */}
+                <div className="flex gap-4 flex-1 min-w-0">
+                  <div>
+                    <div className="text-[9px] text-gray-400 uppercase">Fase</div>
+                    <div className="text-[12px] font-semibold text-gray-900 truncate max-w-[160px]">
+                      {a.fase_atual}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-gray-400 uppercase">Responsável</div>
+                    <div className="text-[12px] font-semibold text-gray-900 truncate max-w-[160px]">
+                      {a.responsavel || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-gray-400 uppercase">Atualizado</div>
+                    <div className={`text-[12px] font-semibold ${parado ? "text-amber-600" : "text-gray-900"}`}>
+                      {fmtDate(a.atualizado_em)}
+                      {parado && <span className="ml-1 text-[10px]">({a.dias_sem_atualizacao}d)</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-gray-400 uppercase">Campanha</div>
+                    <div className="text-[12px] font-semibold text-gray-900 truncate max-w-[140px]">
+                      {a.campanha || "—"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Badges */}
+                <Badge color={faseAtiva ? "green" : "gray"}>
+                  {faseAtiva ? "Ativo" : "Inativo"}
+                </Badge>
+                {isFirst && <Badge color="pip">Mais recente</Badge>}
+
+                {/* Chevron */}
+                {isOpen
+                  ? <ChevronDown size={16} className="text-gray-400 shrink-0" />
+                  : <ChevronRight size={16} className="text-gray-400 shrink-0" />}
+              </div>
+            </button>
+
+            {/* ── DETALHE EXPANSÍVEL ── */}
+            {isOpen && (
+              <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 animate-slideUp">
+                <div className="grid grid-cols-4 gap-4 mb-4">
+                  <Field label="Atendente Inicial" value={a.atendente_inicial} />
+                  <Field label="Origem Lead"       value={a.origem_lead} />
+                  <Field label="Canal Preferencial" value={a.canal_preferencia} />
+                  <Field label="Tentativa Contato" value={a.tentativa_contato} />
+                  <Field label="Criado em"         value={fmtDate(a.criado_em)} />
+                  <Field label="Atualizado em"     value={fmtDate(a.atualizado_em)} />
+                  <Field label="Retorno Agendado"
+                    value={a.tem_retorno_agendado ? fmtDate(a.data_retorno_fase) : "Não"}
+                    highlight={a.tem_retorno_agendado ? "pip" : undefined} />
+                  <Field label="Prioridade"        value={a.prioridade_cgi} />
+                </div>
+
+                {/* Último comentário */}
+                {a.ultimo_comentario && (
+                  <div className="mb-4">
+                    <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                      Último Comentário · {fmtDate(a.ultimo_comentario_em)}
+                    </div>
+                    <p className="text-[12px] text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-2.5 leading-relaxed">
+                      {a.ultimo_comentario}
+                    </p>
+                  </div>
+                )}
+
+                {/* Botão Pipefy */}
+                <a href={a.url_card_pipefy} target="_blank" rel="noreferrer"
+                   className="inline-flex items-center gap-2 px-4 py-2 bg-pip-500 hover:bg-pip-600 text-white text-[12px] font-semibold rounded-xl transition-colors">
+                  <ExternalLink size={13} /> Abrir card #{String(a.id_card_pipefy)} no Pipefy
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
