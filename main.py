@@ -58,11 +58,43 @@ SQL = {
         ORDER BY atualizado_em DESC LIMIT 10
     """,
     "contratos": f"""
-        SELECT id_contrato, empresa, area_negocio, tipo_contrato,
-               valor_financiado, valor_total, valor_entrada, qtd_parcelas,
-               valor_parcela_estimado, data_contrato, contrato_ativo
-        FROM {CAT}.`fato_contratos`
-        WHERE cpf = %s ORDER BY data_contrato DESC
+        SELECT
+            c.id_contrato,
+            c.empresa,
+            c.area_negocio,
+            c.tipo_contrato,
+            c.valor_financiado,
+            c.valor_total,
+            c.valor_entrada,
+            c.qtd_parcelas,
+            c.valor_parcela_estimado,
+            c.data_contrato,
+            c.contrato_ativo,
+            -- Status real baseado nas parcelas
+            CASE
+                WHEN c.contrato_ativo = FALSE                          THEN 'Encerrado'
+                WHEN SUM(CASE WHEN p.em_atraso  THEN 1 ELSE 0 END) > 0 THEN 'Em atraso'
+                WHEN SUM(CASE WHEN p.a_vencer   THEN 1 ELSE 0 END) = 0
+                 AND SUM(CASE WHEN p.paga        THEN 1 ELSE 0 END) > 0 THEN 'Quitado'
+                WHEN SUM(CASE WHEN p.a_vencer   THEN 1 ELSE 0 END) > 0 THEN 'Em dia'
+                ELSE 'Sem parcelas'
+            END AS status_contrato,
+            -- Métricas de parcelas por contrato
+            COUNT(p.num_parcela)                                               AS total_parcelas,
+            SUM(CASE WHEN p.paga       THEN 1 ELSE 0 END)                      AS parcelas_pagas,
+            SUM(CASE WHEN p.em_atraso  THEN 1 ELSE 0 END)                      AS parcelas_atraso,
+            SUM(CASE WHEN p.a_vencer   THEN 1 ELSE 0 END)                      AS parcelas_a_vencer,
+            ROUND(SUM(CASE WHEN p.em_atraso THEN p.saldo_parcela ELSE 0 END),2) AS saldo_em_atraso,
+            ROUND(SUM(CASE WHEN p.paga      THEN p.valor_pago    ELSE 0 END),2) AS total_pago
+        FROM {CAT}.`fato_contratos` c
+        LEFT JOIN {CAT}.`fato_parcelas` p
+            ON c.id_contrato = p.id_contrato AND c.cpf = p.cpf
+        WHERE c.cpf = %s
+        GROUP BY
+            c.id_contrato, c.empresa, c.area_negocio, c.tipo_contrato,
+            c.valor_financiado, c.valor_total, c.valor_entrada, c.qtd_parcelas,
+            c.valor_parcela_estimado, c.data_contrato, c.contrato_ativo
+        ORDER BY c.data_contrato DESC
     """,
     "parcelas_resumo": f"""
         SELECT
