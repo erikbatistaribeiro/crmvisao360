@@ -365,6 +365,7 @@ function TabContratos({ contratos, loading }: any) {
               <Badge color={c.contrato_ativo ? "green" : "gray"}>
                 {c.contrato_ativo ? "Ativo" : "Encerrado"}
               </Badge>
+              <span className="text-[9px] text-gray-300" title="Ativo = sem data de exclusão na base">ⓘ</span>
               {open === c.id_contrato
                 ? <ChevronDown size={16} className="text-gray-400" />
                 : <ChevronRight size={16} className="text-gray-400" />}
