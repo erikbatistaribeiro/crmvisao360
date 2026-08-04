@@ -51,6 +51,13 @@ export interface Contrato {
   valor_parcela_estimado: number | null;
   data_contrato:          string | null;
   contrato_ativo:         boolean;
+  status_contrato:        "Em dia" | "Em atraso" | "Quitado" | "Encerrado" | "Sem parcelas";
+  total_parcelas:         number;
+  parcelas_pagas:         number;
+  parcelas_atraso:        number;
+  parcelas_a_vencer:      number;
+  saldo_em_atraso:        number;
+  total_pago:             number;
 }
 
 export interface ParcelasResumo {
