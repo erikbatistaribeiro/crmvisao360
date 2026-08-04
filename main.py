@@ -83,7 +83,7 @@ SQL = {
                valor_parcela, valor_pago, saldo_parcela, juros_atraso,
                status_parcela, faixa_atraso, dias_atraso, tipo_baixa
         FROM {CAT}.`fato_parcelas`
-        WHERE cpf = %s ORDER BY data_vencimento DESC LIMIT 200
+        WHERE cpf = %s ORDER BY id_contrato, num_parcela ASC
     """,
     "documentos": f"""
         SELECT id_card_producao, id_card_pessoas, nome_pessoa, parte_envolvida,
