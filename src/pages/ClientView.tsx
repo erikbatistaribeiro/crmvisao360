@@ -330,61 +330,106 @@ function TabContratos({ contratos, loading }: any) {
   if (loading) return <div className="flex justify-center py-12"><Spinner /></div>;
   if (!contratos?.length) return <Empty message="Nenhum contrato encontrado." />;
 
+  const statusCfg: Record<string, { color: string; badge: string }> = {
+    "Em dia":       { color: "border-l-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    "Em atraso":    { color: "border-l-red-400",     badge: "bg-red-50     text-red-700     border-red-200"     },
+    "Quitado":      { color: "border-l-blue-400",    badge: "bg-blue-50    text-blue-700    border-blue-200"    },
+    "Encerrado":    { color: "border-l-gray-300",    badge: "bg-gray-100   text-gray-500    border-gray-200"    },
+    "Sem parcelas": { color: "border-l-gray-300",    badge: "bg-gray-100   text-gray-400    border-gray-200"    },
+  };
+
   return (
     <div className="flex flex-col gap-3">
-      {contratos.map((c: any) => (
-        <div key={c.id_contrato}
-          className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden border-l-4 border-l-pip-500">
-          <button
-            onClick={() => setOpen(open === c.id_contrato ? null : c.id_contrato)}
-            className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center gap-4">
-              <span className="text-[13px] font-bold text-pip-600 font-mono shrink-0">
-                {c.id_contrato}
-              </span>
-              <span className="text-[11px] text-gray-400">{fmtDate(c.data_contrato)}</span>
-              <div className="flex gap-3 flex-1">
-                <div>
-                  <div className="text-[9px] text-gray-400 uppercase">Área</div>
-                  <div className="text-[12px] font-semibold text-gray-900">{c.area_negocio}</div>
+      {contratos.map((c: any) => {
+        const cfg    = statusCfg[c.status_contrato] ?? statusCfg["Sem parcelas"];
+        const isOpen = open === c.id_contrato;
+
+        return (
+          <div key={c.id_contrato}
+            className={`bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden border-l-4 ${cfg.color}`}>
+
+            <button
+              onClick={() => setOpen(isOpen ? null : c.id_contrato)}
+              className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <span className="text-[13px] font-bold text-pip-600 font-mono shrink-0">
+                  {c.id_contrato}
+                </span>
+                <span className="text-[11px] text-gray-400 shrink-0">{fmtDate(c.data_contrato)}</span>
+
+                <div className="flex gap-4 flex-1 min-w-0">
+                  <div>
+                    <div className="text-[9px] text-gray-400 uppercase">Área</div>
+                    <div className="text-[12px] font-semibold text-gray-900">{c.area_negocio}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-gray-400 uppercase">Financiado</div>
+                    <div className="text-[12px] font-semibold text-gray-900">{fmtBrl(c.valor_financiado)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-gray-400 uppercase">Parcelas</div>
+                    <div className="text-[12px] font-semibold text-gray-900">
+                      {c.parcelas_pagas ?? 0}/{c.qtd_parcelas ?? "—"}
+                      <span className="text-gray-400 font-normal ml-1">pagas</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] text-gray-400 uppercase">Parcela Est.</div>
+                    <div className="text-[12px] font-semibold text-gray-900">{fmtBrl(c.valor_parcela_estimado)}</div>
+                  </div>
+                  {c.parcelas_atraso > 0 && (
+                    <div>
+                      <div className="text-[9px] text-red-400 uppercase">Em Atraso</div>
+                      <div className="text-[12px] font-semibold text-red-600">
+                        {c.parcelas_atraso} · {fmtBrl(c.saldo_em_atraso)}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <div className="text-[9px] text-gray-400 uppercase">Financiado</div>
-                  <div className="text-[12px] font-semibold text-gray-900">{fmtBrl(c.valor_financiado)}</div>
+
+                {/* Status badge */}
+                <span className={`px-2 py-0.5 rounded border text-[11px] font-semibold shrink-0 ${cfg.badge}`}>
+                  {c.status_contrato}
+                </span>
+                {isOpen
+                  ? <ChevronDown size={16} className="text-gray-400 shrink-0" />
+                  : <ChevronRight size={16} className="text-gray-400 shrink-0" />}
+              </div>
+            </button>
+
+            {isOpen && (
+              <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 animate-slideUp">
+                {/* Métricas de parcelas */}
+                <div className="grid grid-cols-6 gap-px bg-gray-200 border border-gray-200 rounded-xl overflow-hidden mb-4">
+                  <KpiCard label="Total Parcelas"  value={c.total_parcelas ?? "—"} />
+                  <KpiCard label="Pagas"           value={c.parcelas_pagas ?? 0}   color="green" />
+                  <KpiCard label="Em Atraso"       value={c.parcelas_atraso ?? 0}  color={c.parcelas_atraso > 0 ? "red" : "green"} />
+                  <KpiCard label="A Vencer"        value={c.parcelas_a_vencer ?? 0} color="amber" />
+                  <KpiCard label="Saldo Atraso"    value={fmtBrl(c.saldo_em_atraso)} color={c.saldo_em_atraso > 0 ? "red" : "green"} />
+                  <KpiCard label="Total Pago"      value={fmtBrl(c.total_pago)}    color="green" />
                 </div>
-                <div>
-                  <div className="text-[9px] text-gray-400 uppercase">Parcelas</div>
-                  <div className="text-[12px] font-semibold text-gray-900">{c.qtd_parcelas ?? "—"}</div>
-                </div>
-                <div>
-                  <div className="text-[9px] text-gray-400 uppercase">Parcela Est.</div>
-                  <div className="text-[12px] font-semibold text-gray-900">{fmtBrl(c.valor_parcela_estimado)}</div>
+                {/* Detalhes do contrato */}
+                <div className="grid grid-cols-4 gap-4">
+                  <Field label="Valor Financiado" value={fmtBrl(c.valor_financiado)} highlight="pip" />
+                  <Field label="Valor Total"      value={fmtBrl(c.valor_total)} />
+                  <Field label="Entrada"          value={fmtBrl(c.valor_entrada)} />
+                  <Field label="Qtd. Parcelas"    value={c.qtd_parcelas} />
+                  <Field label="Data Contrato"    value={fmtDate(c.data_contrato)} />
+                  <Field label="Empresa"          value={c.empresa} />
+                  <Field label="Tipo"             value={c.tipo_contrato} />
+                  <Field label="Status"           value={c.status_contrato}
+                    highlight={
+                      c.status_contrato === "Em atraso" ? "red"   :
+                      c.status_contrato === "Quitado"   ? undefined :
+                      c.status_contrato === "Em dia"    ? "green" : undefined
+                    } />
                 </div>
               </div>
-              <Badge color={c.contrato_ativo ? "green" : "gray"}>
-                {c.contrato_ativo ? "Ativo" : "Encerrado"}
-              </Badge>
-              <span className="text-[9px] text-gray-300" title="Ativo = sem data de exclusão na base">ⓘ</span>
-              {open === c.id_contrato
-                ? <ChevronDown size={16} className="text-gray-400" />
-                : <ChevronRight size={16} className="text-gray-400" />}
-            </div>
-          </button>
-          {open === c.id_contrato && (
-            <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 grid grid-cols-4 gap-4 animate-slideUp">
-              <Field label="Valor Financiado" value={fmtBrl(c.valor_financiado)} highlight="pip" />
-              <Field label="Valor Total"      value={fmtBrl(c.valor_total)} />
-              <Field label="Entrada"          value={fmtBrl(c.valor_entrada)} />
-              <Field label="Qtd. Parcelas"    value={c.qtd_parcelas} />
-              <Field label="Data Contrato"    value={fmtDate(c.data_contrato)} />
-              <Field label="Empresa"          value={c.empresa} />
-              <Field label="Tipo"             value={c.tipo_contrato} />
-              <Field label="Status"           value={c.contrato_ativo ? "Ativo" : "Encerrado"} />
-            </div>
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
