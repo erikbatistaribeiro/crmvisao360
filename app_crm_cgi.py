@@ -310,6 +310,15 @@ html,body{font-family:'Inter',-apple-system,sans-serif;font-size:13px;color:var(
 .doc-link{color:var(--pip-d);text-decoration:none;font-size:11px;font-weight:500}
 .doc-link:hover{text-decoration:underline}
 .empty{text-align:center;padding:40px 20px;color:var(--g4);font-size:12px}
+.search-wrap button.loading{background:var(--pip-d);opacity:.75;cursor:not-allowed;position:relative}
+.search-wrap button.loading::after{content:'';display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-left:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay{display:flex;align-items:center;justify-content:center;padding:48px 24px;gap:12px;color:var(--g5);font-size:13px}
+.spinner{width:18px;height:18px;border:2px solid var(--g2);border-top-color:var(--pip);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.not-found{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;gap:10px;color:var(--g5)}
+.not-found .nf-icon{font-size:36px;margin-bottom:4px}
+.not-found .nf-title{font-size:15px;font-weight:600;color:var(--g7)}
+.not-found .nf-sub{font-size:12px;color:var(--g4)}
 """
 
 # ── APP ───────────────────────────────────────────────────────────────────────
@@ -330,12 +339,13 @@ app.layout = html.Div([
             dcc.Input(id="search-input", type="text",
                       placeholder="Buscar por CPF ou nome...",
                       debounce=False, style={"width": "100%"}),
-            html.Button("Buscar", id="search-btn"),
+            html.Button("Buscar", id="search-btn", n_clicks=0),
         ], className="search-wrap"),
         html.Div([html.Div(id="user-avatar", className="avatar", children="?")],
                  className="topbar-right"),
     ], className="topbar"),
     html.Div(id="search-results", style={"display": "none"}),
+    html.Div(id="loading-indicator", className="loading-overlay", style={"display": "none"}),
     html.Div(id="client-content"),
     dcc.Store(id="cpf-store"),
 ])
@@ -350,33 +360,65 @@ def update_avatar(_):
 @callback(
     Output("search-results", "children"),
     Output("search-results", "style"),
+    Output("loading-indicator", "children"),
+    Output("loading-indicator", "style"),
+    Output("client-content", "children", allow_duplicate=True),
     Input("search-btn", "n_clicks"),
     Input("search-input", "n_submit"),
     State("search-input", "value"),
     prevent_initial_call=True,
 )
 def buscar(_, __, termo):
+    # Limpa conteúdo anterior e mostra loading
+    loading_on  = [html.Div(className="spinner"), html.Span("Buscando...")], {"display": "flex"}
+    loading_off = [], {"display": "none"}
+
     if not termo or not termo.strip():
-        return [], {"display": "none"}
+        return [], {"display": "none"}, *loading_off, dash.no_update
+
     t = termo.strip().replace(".", "").replace("-", "").replace("/", "")
+
     if t.isdigit() and len(t) == 11:
         rows = query(SQL_BUSCA_CPF, [t])
         if rows:
-            return build_client_content(rows[0], t), {"display": "none"}
-        return [html.Div("CPF não encontrado.", className="empty")], {"display": "block"}
+            # CPF encontrado → renderiza direto, sem lista de resultados
+            return [], {"display": "none"}, *loading_off, build_client_content(rows[0], t)
+        # CPF não encontrado
+        not_found = html.Div([
+            html.Div("🔍", className="nf-icon"),
+            html.Div("CPF não encontrado", className="nf-title"),
+            html.Div(f"Nenhum registro para o CPF {fmt_cpf(t)}", className="nf-sub"),
+        ], className="not-found")
+        return [not_found], {"display": "block"}, *loading_off, []
+
     rows = query(SQL_BUSCA_NOME, ["%" + termo.strip() + "%"])
     if not rows:
-        return [html.Div("Nenhum cliente encontrado.", className="empty")], {"display": "block"}
+        not_found = html.Div([
+            html.Div("🔍", className="nf-icon"),
+            html.Div("Nenhum cliente encontrado", className="nf-title"),
+            html.Div(f"Tente buscar pelo CPF ou outro nome", className="nf-sub"),
+        ], className="not-found")
+        return [not_found], {"display": "block"}, *loading_off, []
+
     items = [
         html.Div([
-            html.Div(r.get("nome_cliente", ""), className="sri-nome"),
-            html.Div(f"CPF: {fmt_cpf(r.get('cpf',''))} · {r.get('fase_atual','')} · {r.get('responsavel','')}",
-                     className="sri-meta"),
+            html.Div([
+                html.Div(r.get("nome_cliente", ""), className="sri-nome"),
+                html.Span(r.get("fase_atual",""), className="chip",
+                          style={"fontSize":"10px","marginLeft":"6px",
+                                 "background": "#059669" + "15" if r.get("fase_ativa") else "#6B728015",
+                                 "color": "#059669" if r.get("fase_ativa") else "#6B7280",
+                                 "borderColor": "#059669" + "50" if r.get("fase_ativa") else "#6B728050"}),
+            ], style={"display":"flex","alignItems":"center"}),
+            html.Div(
+                f"CPF: {fmt_cpf(r.get('cpf',''))}  ·  {r.get('responsavel','') or '—'}  ·  {r.get('telefone','') or '—'}",
+                className="sri-meta"
+            ),
         ], className="search-result-item",
            id={"type": "sri", "cpf": r.get("cpf", "")})
         for r in rows
     ]
-    return items, {"display": "block"}
+    return items, {"display": "block"}, *loading_off, []
 
 @callback(
     Output("search-results", "style", allow_duplicate=True),
