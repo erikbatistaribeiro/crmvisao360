@@ -45,7 +45,7 @@ export default function ClientView({ cpf }: { cpf: string }) {
   // Resolve casos onde dim_clientes guarda "Lead Não Qualificado" mas o cliente
   // já tem um card em "Operação Finalizada" no histórico.
   const ORDEM_FASES = [
-    "Operação Finalizada","Pagamento Aprovado","Registro","Formalização",
+    "Operação Finalizada","Pagamento Aprovado","Pagamento Enviado","Registro","Formalização",
     "Aprovado","Pré-Aprovado","Análise de Cliente","Envio de Documentos",
     "Negociação","Segunda Qualificação","Primeira Qualificação","Contato Inicial",
     "Comitê de Crédito","Pendente Análise de Crédito","Negociação Fria",
