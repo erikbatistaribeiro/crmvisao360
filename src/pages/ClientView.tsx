@@ -201,7 +201,7 @@ export default function ClientView({ cpf }: { cpf: string }) {
           <TabContratos contratos={contratos} loading={loadingCo} />
         )}
         {tab === "Parcelas" && (
-          <TabParcelas resumo={parResumo} detalhe={parDetalhe} loading={loadingPd} />
+          <TabParcelas resumo={parResumo} detalhe={parDetalhe} contratos={contratos} loading={loadingPd} />
         )}
         {tab === "Documentos" && (
           <TabDocumentos docs={documentos} loading={loadingD} />
@@ -391,44 +391,178 @@ function TabContratos({ contratos, loading }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: PARCELAS
 // ─────────────────────────────────────────────────────────────────────────────
-function TabParcelas({ resumo, detalhe, loading }: any) {
+function TabParcelas({ resumo, detalhe, contratos, loading }: any) {
+  const [contratoSel, setContratoSel] = useState<string>("__todos__");
+  const [statusFiltro, setStatusFiltro] = useState<string>("__todos__");
+
   if (loading) return <div className="flex justify-center py-12"><Spinner /></div>;
 
-  const statusClass = {
-    "Paga":       "bg-emerald-50 text-emerald-700 border-emerald-200",
-    "Em atraso":  "bg-red-50 text-red-700 border-red-200",
-    "A vencer":   "bg-amber-50 text-amber-700 border-amber-200",
-  } as Record<string, string>;
+  // Monta lista de contratos únicos presentes nas parcelas
+  const contratosNasParcelas: string[] = Array.from(
+    new Set((detalhe ?? []).map((p: any) => p.id_contrato))
+  ) as string[];
+
+  // Filtra parcelas
+  const parcelasFiltradas = (detalhe ?? []).filter((p: any) => {
+    const okContrato = contratoSel === "__todos__" || p.id_contrato === contratoSel;
+    const okStatus   = statusFiltro === "__todos__" || p.status_parcela === statusFiltro;
+    return okContrato && okStatus;
+  });
+
+  // KPIs do filtro atual
+  const kpisFiltro = {
+    total:    parcelasFiltradas.length,
+    pagas:    parcelasFiltradas.filter((p: any) => p.status_parcela === "Paga").length,
+    atraso:   parcelasFiltradas.filter((p: any) => p.status_parcela === "Em atraso").length,
+    aVencer:  parcelasFiltradas.filter((p: any) => p.status_parcela === "A vencer").length,
+    vlPago:   parcelasFiltradas.reduce((s: number, p: any) => s + (p.valor_pago ?? 0), 0),
+    vlAtraso: parcelasFiltradas.filter((p: any) => p.status_parcela === "Em atraso")
+                .reduce((s: number, p: any) => s + (p.saldo_parcela ?? 0), 0),
+    vlAVencer:parcelasFiltradas.filter((p: any) => p.status_parcela === "A vencer")
+                .reduce((s: number, p: any) => s + (p.valor_parcela ?? 0), 0),
+  };
+
+  // Info do contrato selecionado
+  const contratoInfo = contratoSel !== "__todos__"
+    ? contratos?.find((c: any) => c.id_contrato === contratoSel)
+    : null;
+
+  const statusClass: Record<string, string> = {
+    "Paga":      "bg-emerald-50 text-emerald-700 border-emerald-200",
+    "Em atraso": "bg-red-50     text-red-700     border-red-200",
+    "A vencer":  "bg-amber-50   text-amber-700   border-amber-200",
+  };
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Resumo */}
-      {resumo && (
-        <div className="grid grid-cols-6 gap-px bg-gray-200 border border-gray-200 rounded-xl overflow-hidden">
-          <KpiCard label="Total"         value={resumo.total} />
-          <KpiCard label="Pagas"         value={resumo.pagas}       color="green" />
-          <KpiCard label="Em Atraso"     value={resumo.em_atraso}   color={resumo.em_atraso > 0 ? "red" : "green"} />
-          <KpiCard label="A Vencer"      value={resumo.a_vencer}    color="amber" />
-          <KpiCard label="Max Dias Atraso" value={`${resumo.max_dias_atraso}d`} />
-          <KpiCard label="Adimplência"   value={`${resumo.taxa_adimplencia}%`} color="green" />
+
+      {/* ── FILTROS ── */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap items-end gap-4">
+
+        {/* Seletor de contrato */}
+        <div className="flex flex-col gap-1 min-w-[260px] flex-1">
+          <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
+            Contrato
+          </label>
+          <select
+            value={contratoSel}
+            onChange={e => { setContratoSel(e.target.value); setStatusFiltro("__todos__"); }}
+            className="h-9 border border-gray-200 rounded-lg px-3 text-[12px] font-medium text-gray-900 bg-white outline-none focus:border-pip-500 focus:ring-2 focus:ring-pip-100 transition-all cursor-pointer"
+          >
+            <option value="__todos__">
+              Todos os contratos ({contratosNasParcelas.length})
+            </option>
+            {contratosNasParcelas.map((id: string) => {
+              const info = contratos?.find((c: any) => c.id_contrato === id);
+              const label = info
+                ? `${id.slice(-10)} · ${info.area_negocio} · ${fmtBrl(info.valor_financiado)}`
+                : id.slice(-10);
+              return <option key={id} value={id}>{label}</option>;
+            })}
+          </select>
+        </div>
+
+        {/* Filtro de status */}
+        <div className="flex gap-1.5">
+          {[
+            { val: "__todos__", label: "Todas",     cls: "bg-gray-100 text-gray-600 border-gray-200" },
+            { val: "Paga",      label: "✓ Pagas",   cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+            { val: "Em atraso", label: "⚠ Atraso",  cls: "bg-red-50 text-red-700 border-red-200" },
+            { val: "A vencer",  label: "⏱ A vencer",cls: "bg-amber-50 text-amber-700 border-amber-200" },
+          ].map(opt => (
+            <button
+              key={opt.val}
+              onClick={() => setStatusFiltro(opt.val)}
+              className={`px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all ${opt.cls}
+                ${statusFiltro === opt.val ? "ring-2 ring-pip-500 ring-offset-1" : "opacity-70 hover:opacity-100"}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Limpar filtros */}
+        {(contratoSel !== "__todos__" || statusFiltro !== "__todos__") && (
+          <button
+            onClick={() => { setContratoSel("__todos__"); setStatusFiltro("__todos__"); }}
+            className="text-[11px] text-gray-400 hover:text-gray-600 underline"
+          >
+            Limpar filtros
+          </button>
+        )}
+      </div>
+
+      {/* ── INFO DO CONTRATO SELECIONADO ── */}
+      {contratoInfo && (
+        <div className="bg-pip-50 border border-pip-200 rounded-xl px-4 py-3 flex flex-wrap gap-6 animate-slideUp">
+          <div>
+            <div className="text-[9px] font-semibold text-pip-400 uppercase tracking-wider">Contrato</div>
+            <div className="text-[12px] font-bold text-pip-700 font-mono">{contratoInfo.id_contrato}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-semibold text-pip-400 uppercase tracking-wider">Área</div>
+            <div className="text-[12px] font-semibold text-gray-900">{contratoInfo.area_negocio}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-semibold text-pip-400 uppercase tracking-wider">Financiado</div>
+            <div className="text-[12px] font-semibold text-gray-900">{fmtBrl(contratoInfo.valor_financiado)}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-semibold text-pip-400 uppercase tracking-wider">Parcelas</div>
+            <div className="text-[12px] font-semibold text-gray-900">{contratoInfo.qtd_parcelas}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-semibold text-pip-400 uppercase tracking-wider">Parcela Est.</div>
+            <div className="text-[12px] font-semibold text-gray-900">{fmtBrl(contratoInfo.valor_parcela_estimado)}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-semibold text-pip-400 uppercase tracking-wider">Status</div>
+            <div className={`text-[12px] font-semibold ${contratoInfo.contrato_ativo ? "text-emerald-600" : "text-gray-500"}`}>
+              {contratoInfo.contrato_ativo ? "Ativo" : "Encerrado"}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Detalhe */}
-      <SectionCard title="Parcelas Detalhadas">
-        <div className="overflow-x-auto">
+      {/* ── KPIs DO FILTRO ATUAL ── */}
+      <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200 rounded-xl overflow-hidden">
+        <KpiCard label="Total filtrado" value={kpisFiltro.total} />
+        <KpiCard label="Pagas"          value={kpisFiltro.pagas}   color="green" />
+        <KpiCard label="Em Atraso"      value={kpisFiltro.atraso}  color={kpisFiltro.atraso > 0 ? "red" : "green"} />
+        <KpiCard label="A Vencer"       value={kpisFiltro.aVencer} color="amber" />
+        <KpiCard label="Total Pago"     value={fmtBrl(kpisFiltro.vlPago)}   color="green" />
+        <KpiCard label="Saldo Atraso"   value={fmtBrl(kpisFiltro.vlAtraso)} color={kpisFiltro.atraso > 0 ? "red" : "green"} />
+        <KpiCard label="A Vencer R$"    value={fmtBrl(kpisFiltro.vlAVencer)} color="amber" />
+      </div>
+
+      {/* ── TABELA COM SCROLL VIRTUALIZADO ── */}
+      <SectionCard
+        title={`Parcelas ${contratoSel !== "__todos__" ? `— ${contratoSel.slice(-10)}` : "— Todos os contratos"}`}
+        action={
+          <span className="text-[10px] text-gray-400">
+            {parcelasFiltradas.length} parcela{parcelasFiltradas.length !== 1 ? "s" : ""}
+          </span>
+        }
+      >
+        {/* Container com altura fixa + scroll — aguenta 240 linhas sem travar */}
+        <div className="overflow-auto" style={{ maxHeight: "480px" }}>
           <table className="w-full text-[11px] border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-gray-50 border-b border-gray-200">
-                {["Contrato","Parc.","Vencimento","Pagamento","Valor","Pago","Saldo","Status","Atraso","Juros"]
-                  .map(h => <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-gray-500 whitespace-nowrap">{h}</th>)}
+                {["Parc.","Vencimento","Pagamento","Valor","Pago","Saldo","Status","Atraso","Juros"]
+                  .map(h => (
+                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-gray-500 whitespace-nowrap bg-gray-50">
+                      {h}
+                    </th>
+                  ))}
               </tr>
             </thead>
             <tbody>
-              {(detalhe ?? []).map((p: any, i: number) => (
-                <tr key={i} className="border-b border-gray-100 hover:bg-pip-50 transition-colors">
-                  <td className="px-3 py-2 font-mono text-[10px] text-gray-500">{p.id_contrato?.slice(-8)}</td>
-                  <td className="px-3 py-2 font-semibold">{p.num_parcela}</td>
+              {parcelasFiltradas.map((p: any, i: number) => (
+                <tr key={i} className={`border-b border-gray-100 hover:bg-pip-50 transition-colors
+                  ${p.status_parcela === "Em atraso" ? "bg-red-50/30" : ""}
+                  ${p.status_parcela === "A vencer"  ? "bg-amber-50/20" : ""}`}>
+                  <td className="px-3 py-2 font-bold text-gray-700">{p.num_parcela}</td>
                   <td className="px-3 py-2">{fmtDate(p.data_vencimento)}</td>
                   <td className="px-3 py-2">{p.data_pagamento ? fmtDate(p.data_pagamento) : "—"}</td>
                   <td className="px-3 py-2 font-semibold">{fmtBrl(p.valor_parcela)}</td>
@@ -442,13 +576,18 @@ function TabParcelas({ resumo, detalhe, loading }: any) {
                       {p.status_parcela}
                     </span>
                   </td>
-                  <td className="px-3 py-2">{p.dias_atraso ? `${p.dias_atraso}d` : "—"}</td>
-                  <td className="px-3 py-2">{p.juros_atraso ? fmtBrl(p.juros_atraso) : "—"}</td>
+                  <td className="px-3 py-2 text-gray-500">{p.dias_atraso ? `${p.dias_atraso}d` : "—"}</td>
+                  <td className="px-3 py-2 text-gray-500">{p.juros_atraso ? fmtBrl(p.juros_atraso) : "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {!detalhe?.length && <Empty message="Nenhuma parcela encontrada." />}
+          {!parcelasFiltradas.length && (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-gray-400">
+              <span className="text-2xl">🔍</span>
+              <span className="text-[12px]">Nenhuma parcela para o filtro selecionado</span>
+            </div>
+          )}
         </div>
       </SectionCard>
     </div>
