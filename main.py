@@ -272,7 +272,7 @@ def get_atendimentos(cpf: str):
             PRIORIDADE_CGI                  AS prioridade_cgi,
             PEDRA                           AS pedra,
             SCORE_RISCO                     AS score_risco
-        FROM mawe.silver.campanhas_pipefy
+        FROM bsf_prod.silver.campanhas_pipefy
         WHERE REGEXP_REPLACE(CPF, '[^0-9]', '') = %s
         ORDER BY ATUALIZADO_EM DESC
     """
